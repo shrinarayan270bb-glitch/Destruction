@@ -5,18 +5,22 @@ A playable prototype of a structural destruction system, in the spirit of
 flow through those bonds to the ground, and anything that loses its path to
 the ground falls as a rigid body with its own mass and centre of mass.
 
-It is a 2D side-section (0.5 m cells) so every mechanism is visible: stress
-in each joint, the support graph, centres of mass and support bases.
+Two versions share the same ideas:
+
+* **3D** (`3d.html`, `src3d/`): 1 m voxel buildings, a member-level 6-DOF
+  stress solver, a voxel rigid-body engine and a three.js view.
+* **2D lab** (`index.html`, `src/`): a side section with 0.5 m cells where every
+  mechanism is easy to see.
 
 ## Run it
 
 ```bash
 npm install          # only needed for the headless tests (planck.js)
-npm start            # serves the folder on http://localhost:8080
-npm test             # headless physics checks
+npm start            # serves the folder: http://localhost:8080/3d.html (3D), /index.html (2D)
+npm test             # headless checks for both (npm run test:2d / test:3d)
 ```
 
-The page loads planck.js from jsDelivr. ES modules need a web server, so
+The 2D page loads planck.js and the 3D page loads three.js from jsDelivr. ES modules need a web server, so
 open it through `npm start` rather than as a `file://` URL.
 
 **Controls:** click uses the tool (Blast, Drill, Weight, Inspect, keys `1`–`4`),
@@ -26,7 +30,51 @@ The **Try a failure** buttons run scripted tests (undermine the house, cut the
 office at the 3rd floor, blast an upper corner, remove a column, drop the crane
 counterweight, undermine the leaning tower…).
 
-## How it works
+## 3D version — `src3d/`
+
+```
+graph.js      voxel support graph, islands, members, support polygon (convex hull), articulation points
+stress.js     member-level RBSM: 6 DOF per member, 6 springs per bond, block IC(0) PCG, time-sliced
+physics.js    voxel rigid-body engine: sampled-surface contacts vs grid, sequential impulses, sleeping
+sim.js        failure rules, impact crushing, debris loads, time-sliced stress jobs
+structures.js house, office block, tower crane, leaning tower, construction site
+render.js     three.js instanced voxels, stress colours, support polygons, COM markers, graph lines
+```
+
+**Two-level graph (the optimisation).** Every authored box is cut into
+structural *members* no bigger than 4 voxels a side: slab panels between
+column lines, storey-high column segments, wall panels, mast and jib sections.
+The stress solve has one rigid node (6 DOF) per member; every voxel bond that
+crosses a member boundary keeps its own six springs (normal, two shears,
+torsion, two bending), so joint stiffness and capacity come from the real
+interface geometry. The office goes from ~5000 unknowns to ~900 and a cold
+solve takes ~11 ms (was ~200 ms per voxel); members fail at their joints as
+whole panels, which is what makes collapses read as big pieces. Blasts and
+impacts can still break bonds inside a member, which splits it.
+
+**Failure rules** are the 2D ones (below) plus two that 3D plates need:
+a connection between two members cracks as a unit, and when a region comes
+loose, every other loose region attached to it through overloaded joints
+joins the same falling body (otherwise parallel yield lines in a floor plate
+peel it into strips).
+
+**Voxel rigid bodies.** Each falling piece is one body. Its exposed faces
+carry sample points on a half-voxel lattice; a point inside a voxel of the
+standing grid or of another body is a contact pushed out through that voxel's
+nearest exposed face. Contacts are solved with sequential impulses
+(friction, warm starting, Baumgarte). A body sleeps when every point of it is
+nearly still, so a tall crane starting to tip is not frozen. Contacts report
+approach speed and impulse to the damage system.
+
+**Time slicing.** Stress solves are generators that yield every few
+iterations; the simulation runs them under a 12 ms per-frame budget, so a big
+solve spreads over a few frames instead of stalling one. Jobs check that
+their island has not changed before applying a result.
+
+Measured headless: a full construction-site collapse (crane topple + office
+bay) averages 2.6 ms per step.
+
+## How it works (2D lab)
 
 ```
 damage (blast / drill / impact)
@@ -148,5 +196,6 @@ directly to 3D:
 * add hierarchical clusters (wall → floor → building) so stress runs on a
   coarse graph first and refines only near damage.
 
-Next steps: cluster hierarchy, resumable CG across frames to remove solve
-spikes on very large islands, and debris sleeping/merging.
+Next steps: move stress jobs to a Web Worker (or the game server), Voronoi or
+authored modular pieces instead of voxels, and replicating `bond broken` /
+`island spawned` events for multiplayer.

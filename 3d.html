@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Destruction Sandbox 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: site-monitor console. Full-bleed viewport on the left, a narrow
+   instrument rail on the right; on phones the rail drops under the viewport. */
+:root {
+  --bg: #e9ece9;
+  --panel: #f7f8f6;
+  --ink: #1c2124;
+  --muted: #5b6569;
+  --line: #d3d8d5;
+  --accent: #d48a06;
+  --accent-ink: #8f5c00;
+  --accent-soft: #f6e6c4;
+  --sky-top: #d3e0e7;
+  --sky-bottom: #eef2ef;
+  --ground: #6e655a;
+  --ground-line: #4c453d;
+  --grid: rgba(28, 33, 36, 0.07);
+  --ok: #3e9a6c;
+  --warn: #e0ac22;
+  --crit: #d0412c;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --rail: 330px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181b; --panel: #1b2024; --ink: #e3e6e3; --muted: #97a0a4; --line: #2d3438;
+    --accent: #f0a51c; --accent-ink: #f5bb4f; --accent-soft: #3a2f17;
+    --sky-top: #141c22; --sky-bottom: #1f282e; --ground: #3b352f; --ground-line: #59514a;
+    --grid: rgba(227, 230, 227, 0.06);
+    --ok: #4fb381; --warn: #e8b534; --crit: #e2553f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181b; --panel: #1b2024; --ink: #e3e6e3; --muted: #97a0a4; --line: #2d3438;
+  --accent: #f0a51c; --accent-ink: #f5bb4f; --accent-soft: #3a2f17;
+  --sky-top: #141c22; --sky-bottom: #1f282e; --ground: #3b352f; --ground-line: #59514a;
+  --grid: rgba(227, 230, 227, 0.06);
+  --ok: #4fb381; --warn: #e8b534; --crit: #e2553f;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 var(--font-body);
+  display: flex; flex-direction: column;
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; min-width: 0; }
+.brand h1 {
+  margin: 0; font: 700 22px/1 var(--font-display); letter-spacing: 0.02em; text-transform: uppercase;
+}
+.brand h1 .stripe {
+  display: inline-block; width: 18px; height: 14px; margin-right: 8px; vertical-align: -1px;
+  background: repeating-linear-gradient(-45deg, var(--accent) 0 4px, var(--ink) 4px 8px);
+}
+.brand span { color: var(--muted); font-size: 12.5px; }
+.bar-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.btn, select {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 6px;
+  padding: 6px 11px; cursor: pointer; line-height: 1.2;
+}
+.btn:hover, select:hover { border-color: var(--muted); }
+.btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+main { flex: 1; display: flex; min-height: 0; }
+.viewport { position: relative; flex: 1; min-width: 0; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+#overlay { pointer-events: none; }
+a.btn { text-decoration: none; display: inline-block; }
+.hint {
+  position: absolute; left: 12px; bottom: 12px; max-width: calc(100% - 24px); pointer-events: none;
+  font: 12px var(--font-data); color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; opacity: 0.92;
+}
+.hint kbd { font: inherit; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); color: var(--ink); }
+.toast {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 6px 12px; border-radius: 6px;
+  font: 600 12.5px var(--font-data); pointer-events: none; opacity: 0; transition: opacity .25s;
+  max-width: calc(100% - 32px); text-align: center;
+}
+.toast.show { opacity: 0.94; }
+
+.rail {
+  width: var(--rail); flex: none; overflow-y: auto; border-left: 1px solid var(--line);
+  background: var(--panel); display: flex; flex-direction: column;
+}
+.sec { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.sec h2 {
+  margin: 0; font: 600 13px/1 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.sec h2 small { font: 11px var(--font-data); letter-spacing: 0; text-transform: none; }
+
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 7px 4px; cursor: pointer; border-right: 1px solid var(--line); font-size: 13px; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg button kbd { display: block; font: 10px var(--font-data); opacity: .6; }
+
+.slider { display: grid; grid-template-columns: 76px 1fr 64px; align-items: center; gap: 8px; font-size: 13px; }
+.slider output { font: 12px var(--font-data); text-align: right; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 12.5px; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.chip kbd { font: 10px var(--font-data); opacity: .6; margin-left: 4px; }
+
+.legend { display: grid; grid-template-columns: 1fr; gap: 4px; font: 11px var(--font-data); color: var(--muted); }
+.ramp { height: 8px; border-radius: 2px; background: linear-gradient(90deg, var(--ok), var(--warn) 50%, var(--crit)); }
+.ramp-labels { display: flex; justify-content: space-between; }
+
+.scen { display: flex; flex-direction: column; gap: 6px; }
+.scen button {
+  text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 7px 10px; cursor: pointer;
+  display: grid; gap: 1px;
+}
+.scen button:hover { border-color: var(--accent); }
+.scen b { font-weight: 600; font-size: 13px; }
+.scen span { color: var(--muted); font-size: 12px; }
+
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0; }
+.stats div { display: flex; flex-direction: column; min-width: 0; }
+.stats dt { font-size: 11.5px; color: var(--muted); }
+.stats dd { margin: 0; font: 600 15px var(--font-data); font-variant-numeric: tabular-nums; }
+
+.inspect { font-size: 13px; display: flex; flex-direction: column; gap: 6px; min-height: 40px; }
+.inspect .empty { color: var(--muted); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
+.bonds { display: flex; flex-direction: column; gap: 3px; }
+.bondrow { display: grid; grid-template-columns: 54px 1fr 44px; gap: 6px; align-items: center; font: 11.5px var(--font-data); }
+.meter { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; }
+
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; max-height: 220px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 52px 1fr; gap: 6px; }
+.log time { font: 11px var(--font-data); color: var(--muted); padding-top: 2px; }
+.log li[data-kind="collapse"] span { color: var(--crit); font-weight: 600; }
+.log li[data-kind="stress"] span { color: var(--accent-ink); }
+
+@media (max-width: 820px) {
+  main { flex-direction: column; }
+  .viewport { flex: none; height: 62vh; min-height: 320px; }
+  .rail { width: auto; border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  body { height: auto; }
+  html { height: auto; }
+  .brand span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <h1><span class="stripe" aria-hidden="true"></span>Destruction Sandbox 3D</h1>
+    <span>member graph · 6-DOF stress · voxel rigid bodies</span>
+  </div>
+  <div class="bar-controls">
+    <select id="preset" aria-label="Scene"></select>
+    <button class="btn" id="reset" title="Rebuild the scene (R)">Rebuild</button>
+    <button class="btn" id="pause" aria-pressed="false" title="Pause (Space)">Pause</button>
+    <button class="btn" id="slow" aria-pressed="false" title="Quarter speed">Slow-mo</button>
+    <button class="btn" id="fit" title="Fit to view (F)">Fit</button>
+    <a class="btn" href="index.html">2D lab</a>
+  </div>
+</header>
+
+<main>
+  <div class="viewport">
+    <canvas id="view" aria-label="3D destruction simulation viewport"></canvas>
+    <canvas id="overlay" aria-hidden="true"></canvas>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="hint" id="hint">Click to use the tool · drag to orbit · right-drag to pan · wheel or pinch to zoom · <kbd>1</kbd>–<kbd>4</kbd> tools · <kbd>Space</kbd> pause</div>
+  </div>
+
+  <aside class="rail">
+    <section class="sec">
+      <h2>Tool</h2>
+      <div class="seg" role="group" aria-label="Tool">
+        <button id="tool-blast" data-tool="blast" aria-pressed="true">Blast<kbd>1</kbd></button>
+        <button id="tool-drill" data-tool="drill" aria-pressed="false">Drill<kbd>2</kbd></button>
+        <button id="tool-weight" data-tool="weight" aria-pressed="false">Weight<kbd>3</kbd></button>
+        <button id="tool-inspect" data-tool="inspect" aria-pressed="false">Inspect<kbd>4</kbd></button>
+      </div>
+      <div class="slider"><label for="radius">Radius</label><input type="range" id="radius" min="1" max="7" step="0.1" value="2.5"><output id="radius-out">2.5 m</output></div>
+      <div class="slider"><label for="power">Charge</label><input type="range" id="power" min="20" max="400" step="10" value="160"><output id="power-out">160 HP</output></div>
+      <div class="slider"><label for="wmass">Weight</label><input type="range" id="wmass" min="0.5" max="30" step="0.5" value="4"><output id="wmass-out">4.0 t</output></div>
+      <div class="slider" title="How much damage landings do: crushing at the contact and snapping of weak spans"><label for="fragility">Impact</label><input type="range" id="fragility" min="0" max="3" step="0.1" value="1"><output id="fragility-out">1.0×</output></div>
+    </section>
+
+    <section class="sec">
+      <h2>Try a failure</h2>
+      <div class="scen" id="scenarios"></div>
+    </section>
+
+    <section class="sec">
+      <h2>Overlays</h2>
+      <div class="chips">
+        <button class="chip" id="ov-stress" data-ov="stress" aria-pressed="true">Stress<kbd>S</kbd></button>
+        <button class="chip" id="ov-com" data-ov="com" aria-pressed="true">Centre of mass<kbd>C</kbd></button>
+        <button class="chip" id="ov-graph" data-ov="graph" aria-pressed="false">Support graph<kbd>G</kbd></button>
+        <button class="chip" id="ov-critical" data-ov="critical" aria-pressed="false">Critical supports<kbd>A</kbd></button>
+        <button class="chip" id="ov-deflect" data-ov="deflect" aria-pressed="false">Deflection ×<kbd>D</kbd></button>
+      </div>
+      <div class="legend">
+        <div class="ramp" aria-hidden="true"></div>
+        <div class="ramp-labels"><span>0%</span><span>50% of capacity</span><span>100% fails</span></div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2>Inspector <small id="insp-mode">hover a block</small></h2>
+      <div class="inspect" id="inspect"><div class="empty">Point at any block to see its mass, health and the load on each of its bonds.</div></div>
+    </section>
+
+    <section class="sec">
+      <h2>Live <small id="fps"></small></h2>
+      <dl class="stats">
+        <div><dt>Chunks</dt><dd id="s-chunks">0</dd></div>
+        <div><dt>Intact bonds</dt><dd id="s-bonds">0</dd></div>
+        <div><dt>Standing islands</dt><dd id="s-anch">0</dd></div>
+        <div><dt>Falling bodies</dt><dd id="s-fall">0</dd></div>
+        <div><dt>Stress solve</dt><dd id="s-solve">0</dd></div>
+        <div><dt>Re-solve queue</dt><dd id="s-queue">0</dd></div>
+      </dl>
+    </section>
+
+    <section class="sec">
+      <h2>Event log</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+  </aside>
+</main>
+
+<script type="module" src="src3d/main.js"></script>
+</body>
+</html>

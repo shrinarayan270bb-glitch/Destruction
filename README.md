@@ -22,8 +22,9 @@ open it through `npm start` rather than as a `file://` URL.
 **Controls:** click uses the tool (Blast, Drill, Weight, Inspect, keys `1`–`4`),
 drag pans, wheel or pinch zooms. `S` stress, `G` support graph, `C` centre of
 mass, `A` critical supports, `D` exaggerated deflection, `Space` pause, `R` rebuild.
-The **Try a failure** buttons run scripted tests (drop the crane counterweight,
-remove a column, undermine the leaning tower…).
+The **Try a failure** buttons run scripted tests (undermine the house, cut the
+office at the 3rd floor, blast an upper corner, remove a column, drop the crane
+counterweight, undermine the leaning tower…).
 
 ## How it works
 
@@ -68,9 +69,35 @@ A bond fails when its utilisation exceeds 1, using a plastic section of length `
 | crushed | `|N|/(c·L)` |
 | sheared | `|V| / (s·L + 0.6·|N|)`: friction under compression |
 
-Only the worst few overloaded bonds break per solve, then the island is
-re-solved. Load redistributes, so collapses progress realistically instead of
-everything snapping at once.
+### How things come apart — `src/sim.js → _fail`
+
+This is what makes damage read like a building, not paper:
+
+1. **Detach, don't shred.** On overload, release every bond that is
+   seriously overloaded (at least half as overloaded as the worst) and find
+   the region that would lose its path to the ground. Break **only the bonds
+   on that region's border**. The whole region leaves as **one rigid body**;
+   overloaded bonds inside it stay intact, because falling unloads them.
+   If nothing would come loose, the load has another path: crack the single
+   worst bond and re-solve.
+2. **Take what goes with it.** Re-solve what would remain. Anything that would
+   fail right next to the falling region, or would be left dangling, joins it.
+   Take out a ground-floor column and the bay above drops as one frame
+   through every floor, instead of floor by floor.
+3. **Damage at the contact.** A landing spends its energy
+   (`½·impulse·approach speed`) breaking the bonds nearest the contact
+   point first; farther bonds cost more, so damage stays local.
+4. **Snap where weak.** A hard landing also stress-checks the falling body:
+   contacts become temporary supports and the deceleration (Δv over the
+   *impact time*) acts like stronger gravity. Long overhangs and thin columns
+   snap off as pieces; compact parts survive. Once a piece comes to rest it is
+   checked again under plain gravity on whatever it landed on.
+5. **Pancaking.** Debris resting *on* a standing structure feeds its weight
+   into that structure's stress solve (averaged, capped at 1.5× the debris
+   weight), so a dropped block can overload the floor below. Sideways shoves
+   only crush locally.
+
+The **Impact** slider scales steps 3 and 4.
 
 ### Centre of mass
 `COM = Σ mᵢpᵢ / Σ mᵢ`, inertia by the parallel-axis theorem
@@ -82,9 +109,11 @@ The tests confirm our COM and mass match the engine's to 1e-15.
 ### Physics bridge — `src/sim.js`
 * Standing chunks are fixtures on one static body; a detached island becomes
   one dynamic body (inheriting velocity when a falling body splits).
-* `pre-solve` records approach speed, `post-solve` records impulses.
-  Fast impacts damage bonds. Resting contact forces become external loads
-  on standing chunks, so debris piling on a slab can overload it.
+* `pre-solve` records approach speed, `post-solve` records impulses (see
+  steps 3–5 above). A piece that has just broken away gets no friction on its
+  crack faces for 0.6 s, so it slides off instead of dragging its neighbours.
+* Continuous collision is off: debris moves well under a cell per step, and
+  CCD against hundreds of touching fixtures cost 20–40 ms per step.
 * The stress solve runs under a per-frame time budget (6 ms by default).
 
 ### Optimisations in place

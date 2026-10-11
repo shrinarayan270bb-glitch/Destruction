@@ -120,8 +120,12 @@ export class Structure {
     for (const comp of this.components(all)) this._makeIsland(comp.chunks, comp.anchored);
   }
 
-  // BFS over unbroken bonds restricted to `ids`. Returns [{chunks, anchored}]
-  components(ids) {
+  // BFS over unbroken bonds restricted to `ids`. Returns [{chunks, anchored}].
+  // skip(bond) lets callers ask "what if these bonds were gone?";
+  // supports (a Set of chunk ids) count as anchored, used for bodies resting
+  // on something instead of bonded to the ground.
+  components(ids, skip = null, supports = null) {
+    const allowed = new Set(ids);
     const seen = new Set();
     const out = [];
     for (const start of ids) {
@@ -134,12 +138,13 @@ export class Structure {
         const id = queue.pop();
         const c = this.chunks[id];
         comp.push(id);
+        if (supports && supports.has(id)) anchored = true;
         for (const bi of c.bonds) {
           const bond = this.bonds[bi];
-          if (bond.broken) continue;
+          if (bond.broken || (skip && skip(bond))) continue;
           if (bond.b === GROUND) { anchored = true; continue; }
           const n = this.other(bond, id);
-          if (!seen.has(n) && !this.chunks[n].destroyed) { seen.add(n); queue.push(n); }
+          if (!seen.has(n) && allowed.has(n) && !this.chunks[n].destroyed) { seen.add(n); queue.push(n); }
         }
       }
       out.push({ chunks: comp, anchored });

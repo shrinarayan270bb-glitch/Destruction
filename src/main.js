@@ -13,12 +13,15 @@ if (!planck) {
 }
 
 const SCENARIOS = [
+  { tag: 'house-base', title: 'Undermine the house', note: 'Cut through every ground-floor wall. The whole house above drops as one body and only cracks where it lands.', act: 'remove' },
+  { tag: 'house-wall', title: 'Breach the house end wall', note: 'The part that hung off that wall breaks away; the rest stands.', act: 'blast' },
+  { tag: 'office-storey', title: 'Cut the office at the 3rd floor', note: 'Everything above falls as one block onto the floors below, which crush where it hits.', act: 'remove' },
+  { tag: 'office-corner', title: 'Blast an upper-floor corner', note: 'The corner the blast left unsupported leaves as one piece. The building stays up.', act: 'blast' },
+  { tag: 'office-column', title: 'Remove a ground-floor column', note: 'The bay above it can no longer span. It drops as one frame through every floor.', act: 'remove' },
   { tag: 'crane-counterweight', title: 'Drop the crane counterweight', note: 'The centre of mass slides toward the jib and leaves the ballast base. The crane tips.', act: 'remove' },
   { tag: 'crane-cable', title: 'Cut the hook cable', note: 'The load falls away. The centre of mass moves back over the base and the crane holds.', act: 'cut' },
   { tag: 'crane-leg', title: 'Cut the jib-side mast leg', note: 'One leg cannot resist the bending moment on its own.', act: 'remove' },
-  { tag: 'office-column', title: 'Remove a ground-floor column', note: 'Every slab above now spans twice as far. Watch them fail in bending.', act: 'remove' },
   { tag: 'tower-toe', title: 'Undermine the leaning tower', note: 'The base shrinks until the centre of mass sits outside it.', act: 'remove' },
-  { tag: 'house-wall', title: 'Breach the house end wall', note: 'A blast takes out the wall; the slab and roof above lose a support.', act: 'blast' },
 ];
 
 let initialPreset = 'site';
@@ -85,6 +88,7 @@ let power = 160, weightT = 3;
 bindSlider('radius', v => v.toFixed(1) + ' m', v => { ren.blastRadius = v; });
 bindSlider('power', v => v + ' HP', v => { power = v; });
 bindSlider('wmass', v => v.toFixed(1) + ' t', v => { weightT = v; });
+bindSlider('fragility', v => v.toFixed(1) + '×', v => { sim.settings.fragility = v; });
 
 function buildScenarios() {
   const box = $('scenarios');
@@ -108,7 +112,7 @@ function runScenario(sc) {
   if (sc.act === 'blast') {
     let x = 0, y = 0;
     for (const c of chunks) { const p = sim.chunkPos(c); x += p.x; y += p.y; }
-    sim.explode(x / chunks.length, y / chunks.length, 2.4, 320);
+    sim.explode(x / chunks.length, y / chunks.length, sc.tag === 'office-corner' ? 3 : 2.4, sc.tag === 'office-corner' ? 400 : 320);
   } else if (sc.act === 'cut') {
     const mid = chunks[Math.floor(chunks.length / 2)];
     sim.removeChunks([mid]);

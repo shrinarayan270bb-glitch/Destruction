@@ -28,9 +28,15 @@ export class StressSolver {
     this.lastMs = 0;
   }
 
-  // Solve one anchored island. Writes N/V/M/util into bonds and q into chunks.
+  // Solve one island. Writes N/V/M/util into bonds and q into chunks.
   // Returns the max utilisation found.
-  solveIsland(isl) {
+  //
+  // Standing islands use the defaults: gravity, debris loads, ground footings.
+  // A falling body that hits something is solved in its own frame with
+  //   opts.supports  [{id, x, y, nx, ny}]  temporary supports at contact points
+  //   opts.accel     {x, y}  body acceleration felt by every chunk
+  //                          (impact deceleration, or gravity once it rests)
+  solveIsland(isl, opts = {}) {
     const t0 = now();
     const st = this.st;
     const ids = isl.chunks.filter(id => !st.chunks[id].destroyed);
@@ -51,12 +57,15 @@ export class StressSolver {
         bondIds.push(bi);
       }
     }
-    const m = bondIds.length;
+    const supports = opts.supports || [];
+    const mReal = bondIds.length;
+    const m = mReal + supports.length;
     const A = new Int32Array(m), B = new Int32Array(m);
     const K = new Float64Array(m * 3);
     const J = new Float64Array(m * 3 * 6);
+    const cell = st.cell;
     for (let r = 0; r < m; r++) {
-      const b = st.bonds[bondIds[r]];
+      const b = r < mReal ? st.bonds[bondIds[r]] : supportRow(supports[r - mReal], cell);
       const ca = st.chunks[b.a];
       A[r] = local[b.a];
       B[r] = b.b === GROUND ? -1 : local[b.b];
@@ -82,13 +91,17 @@ export class StressSolver {
     const N3 = n * 3;
     const f = new Float64Array(N3);
     const x = new Float64Array(N3);
+    const ax = opts.accel ? opts.accel.x : 0, ay = opts.accel ? opts.accel.y : -GRAVITY;
+    const standing = !opts.supports;
     for (let i = 0; i < n; i++) {
       const c = st.chunks[ids[i]];
-      f[i * 3 + 0] = c.ext[0];
-      f[i * 3 + 1] = -c.mass * GRAVITY + c.ext[1];
-      f[i * 3 + 2] = c.ext[2];
-      c.extSolved[0] = c.ext[0]; c.extSolved[1] = c.ext[1]; c.extSolved[2] = c.ext[2];
-      x[i * 3] = c.qx; x[i * 3 + 1] = c.qy; x[i * 3 + 2] = c.qt;   // warm start
+      f[i * 3 + 0] = c.mass * ax;
+      f[i * 3 + 1] = c.mass * ay;
+      if (standing) {
+        f[i * 3 + 0] += c.ext[0]; f[i * 3 + 1] += c.ext[1]; f[i * 3 + 2] = c.ext[2];
+        c.extSolved[0] = c.ext[0]; c.extSolved[1] = c.ext[1]; c.extSolved[2] = c.ext[2];
+        x[i * 3] = c.qx; x[i * 3 + 1] = c.qy; x[i * 3 + 2] = c.qt;   // warm start
+      }
     }
 
     const mul = (v, out) => {
@@ -140,11 +153,11 @@ export class StressSolver {
     // ---- write back -------------------------------------------------------
     for (let i = 0; i < n; i++) {
       const c = st.chunks[ids[i]];
-      c.qx = x[i * 3]; c.qy = x[i * 3 + 1]; c.qt = x[i * 3 + 2];
+      if (standing) { c.qx = x[i * 3]; c.qy = x[i * 3 + 1]; c.qt = x[i * 3 + 2]; }
       c.util = 0;
     }
     let maxUtil = 0;
-    for (let r = 0; r < m; r++) {
+    for (let r = 0; r < mReal; r++) {
       const b = st.bonds[bondIds[r]];
       const a = A[r] * 3, bb = B[r] * 3;
       const d = [0, 0, 0];
@@ -165,6 +178,12 @@ export class StressSolver {
     this.lastMs = now() - t0;
     return maxUtil;
   }
+}
+
+// A temporary support (contact with the ground or another body) shaped like a
+// footing bond. It never fails; only the real bonds are evaluated.
+function supportRow(sp, cell) {
+  return { a: sp.id, b: GROUND, nx: sp.nx, ny: sp.ny, cx: sp.x, cy: sp.y, L: cell, integrity: 1, limits: { stiffness: 200 } };
 }
 
 // Utilisation = load / capacity for the governing failure mode (1.0 = breaks).

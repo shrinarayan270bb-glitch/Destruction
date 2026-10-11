@@ -112,6 +112,8 @@ for (const p of ['house', 'office', 'crane', 'tower', 'site']) {
 {
   const sim = new Simulation(planck, 'office');
   const slab = sim.st.chunks.find(c => c.mat === 'concrete' && c.iy === 41 && c.ix === 14);
+  const roofUtil = () => Math.max(...sim.st.bonds.filter(bd => !bd.broken && sim.st.chunks[bd.a].iy === 41 && bd.b >= 0 && sim.st.chunks[bd.b].iy === 41 && sim.st.chunks[bd.a].ix < 19).map(bd => bd.util));
+  const before = roofUtil();
   sim.dropWeight(slab.x - 0.6, slab.y + 0.8, 1500);
   sim.dropWeight(slab.x + 0.6, slab.y + 0.8, 1500);
   run(sim, 4);
@@ -119,8 +121,54 @@ for (const p of ['house', 'office', 'crane', 'tower', 'site']) {
   for (const c of sim.st.chunks) if (!c.destroyed) load += -c.ext[1];
   const W = 3000 * GRAVITY;
   check('resting debris shows up as slab load', Math.abs(load - W) / W < 0.1 && sim.counts().falling === 0, `${(load / 1000).toFixed(1)} kN on the roof, weights weigh ${(W / 1000).toFixed(1)} kN`);
-  const roof = sim.st.bonds.filter(bd => !bd.broken && sim.st.chunks[bd.a].iy === 41 && bd.b >= 0 && sim.st.chunks[bd.b].iy === 41);
-  check('roof slab stress rises under the load', Math.max(...roof.map(bd => bd.util)) > 0.4, `max roof utilisation ${Math.max(...roof.map(bd => bd.util)).toFixed(2)}`);
+  const after = roofUtil();
+  check('roof slab stress rises under the load', after > before * 1.5, `max roof utilisation ${before.toFixed(2)} -> ${after.toFixed(2)}`);
+}
+
+// 10. Damaged supports: the part above falls as ONE body and is only damaged
+//     where it lands, instead of scattering.
+const pieces = (sim) => [...sim.st.islands.values()].filter(i => !i.anchored)
+  .map(i => sim.st.massProps(i.chunks).mass).sort((a, b) => b - a);
+const upTo = (sim, t) => { while (sim.time < t) sim.step(); };
+{
+  const sim = new Simulation(planck, 'house');
+  const upper = sim.st.chunks.filter(c => c.iy >= 3).reduce((m, c) => m + c.mass, 0);
+  sim.removeChunks(sim.st.chunks.filter(c => c.tag === 'house-base'));
+  upTo(sim, 0.3);
+  const falling = pieces(sim)[0] / upper;
+  upTo(sim, 4);
+  const landed = pieces(sim)[0] / upper;
+  check('house: undermined, the upper house falls as one piece', falling > 0.9, `${(falling * 100).toFixed(0)}% of it in one body`);
+  check('house: after landing it is damaged, not scattered', landed > 0.6, `largest piece ${(landed * 100).toFixed(0)}% of the upper house`);
+}
+{
+  const sim = new Simulation(planck, 'office');
+  const upper = sim.st.chunks.filter(c => c.iy >= 18).reduce((m, c) => m + c.mass, 0);
+  sim.removeChunks(sim.st.chunks.filter(c => c.tag === 'office-storey'));
+  upTo(sim, 0.3);
+  const falling = pieces(sim)[0] / upper;
+  check('office: storey cut, everything above falls as one piece', falling > 0.9, `${(falling * 100).toFixed(0)}% of the upper floors in one body`);
+}
+{
+  const sim = new Simulation(planck, 'office');
+  sim.removeChunks(sim.st.chunks.filter(c => c.tag === 'office-column'));
+  upTo(sim, 0.3);
+  const p = pieces(sim).filter(m => m >= 1000);
+  check('office: missing column drops its bay as one frame, not floor by floor', p.length === 1 && p[0] > 30000, `${p.length} piece(s) over 1 t, largest ${(p[0] / 1000).toFixed(1)} t`);
+}
+{
+  const sim = new Simulation(planck, 'office');
+  const total = sim.st.chunks.reduce((m, c) => m + c.mass, 0);
+  const t = sim.st.chunks.filter(c => c.tag === 'office-corner');
+  sim.explode(t.reduce((a, c) => a + c.x, 0) / t.length, t.reduce((a, c) => a + c.y, 0) / t.length, 3, 400);
+  upTo(sim, 0.3);
+  const p = pieces(sim);
+  upTo(sim, 4);
+  let standing = 0;
+  for (const i of sim.st.islands.values()) if (i.anchored) standing += sim.st.massProps(i.chunks).mass;
+  const share = p[0] / p.reduce((a, m) => a + m, 0);
+  check('office: blasted corner breaks away as one main piece', p[0] > 10000 && share > 0.7, `largest ${(p[0] / 1000).toFixed(1)} t = ${(share * 100).toFixed(0)}% of what fell (the rest is blast fragments)`);
+  check('office: the rest keeps standing', standing / total > 0.7, `${(100 * standing / total).toFixed(0)}% still standing`);
 }
 
 // 9. Solver speed

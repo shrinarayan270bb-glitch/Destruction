@@ -10,7 +10,7 @@
 //   hp           explosion damage a chunk absorbs before it is destroyed
 //   toughness    impact impulse (N*s) that fully breaks a bond
 export const MATERIALS = {
-  concrete: { label: 'Reinforced concrete', density: 2400, tension: 420e3, compression: 20e6, shear: 160e3, stiffness: 30, hp: 120, toughness: 9000, color: '#9a9a94' },
+  concrete: { label: 'Reinforced concrete', density: 2400, tension: 700e3, compression: 20e6, shear: 160e3, stiffness: 30, hp: 120, toughness: 9000, color: '#9a9a94' },
   brick:    { label: 'Brick',               density: 1900, tension: 150e3, compression: 8e6,  shear: 70e3,  stiffness: 15, hp: 70,  toughness: 4000, color: '#b0623f' },
   wood:     { label: 'Timber',              density: 600,  tension: 120e3, compression: 2e6,  shear: 45e3,  stiffness: 10, hp: 50,  toughness: 3000, color: '#c49a5c' },
   steel:    { label: 'Steel I-beam',        density: 3000, tension: 2.5e6, compression: 6e6,  shear: 1.5e6, stiffness: 200, hp: 260, toughness: 30000, color: '#4f6d8a' },

@@ -10,6 +10,7 @@ export function house(b, ox = 0) {
   b.rect(0, 0, 2, 6, 'brick').rect(W - 2, 0, 2, 6, 'brick');
   b.tag('house-wall').rect(0, 0, 2, 6, 'brick').tag(null);
   b.rect(11, 0, 1, 6, 'brick');
+  b.tag('house-base').rect(2 - 2, 1, 2, 2, 'brick').rect(11, 1, 1, 2, 'brick').rect(W - 2, 1, 2, 2, 'brick').tag(null);
   b.rect(0, 6, W, 1, 'concrete');                        // first floor slab
   // upper floor
   b.rect(0, 7, 2, 5, 'brick').rect(W - 2, 7, 2, 5, 'brick');
@@ -36,6 +37,8 @@ export function office(b, ox = 0, storeys = 6) {
   for (let k = 0; k < storeys; k++) {
     const base = k * 7;
     for (const c of cols) b.tag(k === 0 && c === 9 ? 'office-column' : null).rect(c, base, 1, 6, 'steel');
+    if (k === 2) for (const c of cols) b.tag('office-storey').rect(c, base + 2, 1, 2, 'steel');
+    if (k === 2) b.tag('office-corner').rect(0, base + 1, 1, 3, 'steel');
     b.tag(null);
     b.rect(0, base + 6, W, 1, 'concrete');
     // non-structural partitions standing on the slab below (gap at the top)
@@ -43,9 +46,9 @@ export function office(b, ox = 0, storeys = 6) {
     if (k > 0 && k % 2 === 0) b.rect(23, base, 1, 5, 'drywall');
   }
   const top = storeys * 7;
-  // rooftop water tank on steel legs, legs sit over the columns
-  b.rect(9, top, 1, 2, 'steel').rect(19, top, 1, 2, 'steel');
-  b.rect(9, top + 2, 11, 2, 'crate');
+  // rooftop water tank on steel legs over the right-hand bay's columns
+  b.rect(19, top, 1, 2, 'steel').rect(27, top, 1, 2, 'steel');
+  b.rect(19, top + 2, 9, 2, 'crate');
   return { x0: ox, x1: ox + W, h: top + 5 };
 }
 

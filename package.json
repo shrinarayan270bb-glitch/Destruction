@@ -1,0 +1,14 @@
+{
+  "name": "destruction-sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Structural destruction sandbox: support graph, stress solver, centre of mass, falling islands",
+  "scripts": {
+    "test": "node test/run-tests.js",
+    "start": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "planck": "1.4.2"
+  }
+}
